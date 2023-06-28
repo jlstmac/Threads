@@ -17,7 +17,10 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view.
 //    [self problem1GCD];
-    [self problem1Operation];
+//    [self problem1Operation];
+    
+//    [self propblem2GCD];
+    [self propblem2Operation];
 }
 
 //问题1:A B C D E F六个任务，AB执行完之后才能执行D，BC执行完之后才能执行E, DE执行完之后才能执行F，可以并发，整体尽快执行完，ABC之间没有依赖，DF之间没有依赖。
@@ -30,6 +33,7 @@
 
     dispatch_group_enter(groupD);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        sleep(1);
         NSLog(@"A");
         dispatch_group_leave(groupD);
     });
@@ -50,6 +54,7 @@
     
     dispatch_group_enter(groupF);
     dispatch_group_notify(groupD, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        sleep(1);
         NSLog(@"D");
         dispatch_group_leave(groupF);
 
@@ -69,6 +74,7 @@
 - (void)problem1Operation {
     // 用NSBlockOperation创建任务
     NSBlockOperation* blockA = [NSBlockOperation blockOperationWithBlock:^{
+        sleep(1);
         NSLog(@"A");
     }];
     NSBlockOperation* blockB = [NSBlockOperation blockOperationWithBlock:^{
@@ -98,7 +104,7 @@
     [blockF addDependency:blockE];
     
     // 把所有任务加到queue中执行
-    NSOperationQueue* queue = [NSOperationQueue currentQueue];
+    NSOperationQueue* queue = [[NSOperationQueue alloc] init];
     [queue addOperation:blockA];
     [queue addOperation:blockB];
     [queue addOperation:blockC];
@@ -106,5 +112,40 @@
     [queue addOperation:blockE];
     [queue addOperation:blockF];
 
+}
+
+
+//问题2: 假如现在有1w个任务需要执行，并且在全部执行完成之后进行一个提示，该怎么做（group可以轻松实现，但是可能会导致大量线程创建，形成资源浪费）？如果需要设置最大并发量为10应该怎么做？
+- (void)propblem2GCD {
+    const int MAXCOUNT = 10000;
+    const int MAXASYNCCOUNT = 10;
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(MAXASYNCCOUNT);
+    dispatch_group_t group = dispatch_group_create();
+    for (int i = 0; i < MAXCOUNT; i++) {
+        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+        dispatch_group_async(group,dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            sleep(1);
+            NSLog(@"%d",i);
+            dispatch_semaphore_signal(semaphore);
+        });
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        NSLog(@"执行完毕");
+    });
+}
+
+- (void)propblem2Operation {
+    NSOperationQueue *queue = NSOperationQueue.new;
+    queue.maxConcurrentOperationCount = 10;
+    for (int i = 0; i < 10000; i++) {
+        [queue addOperation:[NSBlockOperation blockOperationWithBlock:^{
+//            sleep(1);
+            NSLog(@"%d",i);
+        }]];
+    }
+    [queue addBarrierBlock:^{
+        NSLog(@"执行完毕");
+    }];
+    
 }
 @end
